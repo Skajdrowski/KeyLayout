@@ -1,0 +1,69 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+    tags:
+      - '*'
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Commit
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: hecrj/setup-rust-action@v2
+        with:
+          rust-version: stable
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Release
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/x86_64-pc-windows-msvc/release/KeyVisual.exe
+          name: Latest
+          tag_name: latest
+          body: Latest binary of Keyboard Visualizer.
+
+  clippy:
+    name: Check clippy lints
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Commit
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: hecrj/setup-rust-action@v2
+        with:
+          components: clippy
+          targets: x86_64-pc-windows-msvc
+
+      - name: Run Clippy
+        run: cargo clippy --all-features
+
+  format:
+    name: Check formatting
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Commit
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: hecrj/setup-rust-action@v2
+        with:
+          components: rustfmt
+
+      - name: Run cargo fmt
+        run: cargo fmt -- --check || true

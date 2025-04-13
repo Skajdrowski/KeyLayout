@@ -15,11 +15,7 @@ const HEIGHT: u32 = 400; // Screen height
 
 fn main() {
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_title("QWERTY Keyboard Visualizer with Perfect Alignment")
-        .with_inner_size(LogicalSize::new(WIDTH, HEIGHT))
-        .build(&event_loop)
-        .unwrap();
+    let window = WindowBuilder::new().with_title("KeyLayout").with_inner_size(LogicalSize::new(WIDTH, HEIGHT)).build(&event_loop).unwrap();
 
     let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, &window);
     let mut pixels = Pixels::new(WIDTH, HEIGHT, surface_texture).expect("Failed to create Pixels instance");

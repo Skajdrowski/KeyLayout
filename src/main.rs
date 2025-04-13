@@ -8,12 +8,15 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, time::{Duration, Instant}};
 
 const WIDTH: u32 = 1200; // Screen width
 const HEIGHT: u32 = 400; // Screen height
 
 fn main() {
+    let frame_time = Duration::from_secs_f32(1.0 / 60.0); // 60 FPS
+    let mut last_frame = Instant::now();
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().with_title("KeyLayout").with_inner_size(LogicalSize::new(WIDTH, HEIGHT)).build(&event_loop).unwrap();
 
@@ -92,9 +95,13 @@ fn main() {
         (VirtualKeyCode::RControl, 730, 290, 80, 50, "Ctrl"),
     ];
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+    let mut background_frame = vec![0; (WIDTH * HEIGHT * 4) as usize];
+    for &(_key, x, y, width, height, _) in &key_map {
+        draw_rectangle(&mut background_frame, x, y, width, height, [125, 125, 125, 255]);
+    }
 
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::WaitUntil(last_frame + frame_time);
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
@@ -103,16 +110,12 @@ fn main() {
                         match input.state {
                             ElementState::Pressed => {
                                 pressed_keys.insert(keycode);
-
-                                // Check if Shift key is pressed
                                 if keycode == VirtualKeyCode::LShift || keycode == VirtualKeyCode::RShift {
                                     shift_pressed = true;
                                 }
                             }
                             ElementState::Released => {
                                 pressed_keys.remove(&keycode);
-
-                                // Check if Shift key is released
                                 if keycode == VirtualKeyCode::LShift || keycode == VirtualKeyCode::RShift {
                                     shift_pressed = false;
                                 }
@@ -122,41 +125,34 @@ fn main() {
                 }
                 _ => {}
             },
+            Event::MainEventsCleared => {
+                // Frame timing
+                let now = Instant::now();
+                if now.duration_since(last_frame) >= frame_time {
+                    last_frame = now;
+                    window.request_redraw();
+                }
+            }
             Event::RedrawRequested(_) => {
                 let frame = pixels.frame_mut();
+                frame.copy_from_slice(&background_frame);
 
-                // Background
-                for pixel in frame.chunks_exact_mut(4) {
-                    pixel.copy_from_slice(&[0x00, 0x00, 0x00, 0xFF]); // Black with full alpha
-                }
-
-                // Draw keys and letters
                 for &(key, x, y, width, height, label) in &key_map {
-                    let color = if pressed_keys.contains(&key) {
-                        [255, 255, 255, 255] // Red for pressed keys
-                    } else {
-                        [125, 125, 125, 255] // Gray for idle keys
-                    };
-                    draw_rectangle(frame, x, y, width, height, color);
-
-                    // Render the key's label as transparent text
+                    if pressed_keys.contains(&key) {
+                        draw_rectangle(frame, x, y, width, height, [255, 255, 255, 255]);
+                    }
                     let text = if shift_pressed && label.len() == 1 && label.chars().all(|c| c.is_alphanumeric()) {
                         label.to_uppercase()
                     } else {
                         label.to_string()
                     };
-
                     draw_text_centered(&font, frame, x, y, width, height, &text);
                 }
 
-                // Render the frame
                 if pixels.render().is_err() {
                     *control_flow = ControlFlow::Exit;
                     eprintln!("Pixel rendering error occurred!");
                 }
-            }
-            Event::MainEventsCleared => {
-                window.request_redraw();
             }
             _ => {}
         }
@@ -188,18 +184,15 @@ fn draw_text_centered(
     let mut text_width = 0;
     let mut text_height = 0;
 
-    // Calculate the total width and height of the text
     for c in text.chars() {
         let (metrics, _) = font.rasterize(c, 20.0);
         text_width += metrics.advance_width as u32;
         text_height = text_height.max(metrics.height as u32);
     }
 
-    // Calculate the starting position to center the text
     let x_text = x + (width - text_width) / 2;
     let y_text = y + (height - text_height) / 2;
 
-    // Render each character
     let mut current_x = x_text;
     for c in text.chars() {
         let (metrics, bitmap) = font.rasterize(c, 20.0);
@@ -210,13 +203,11 @@ fn draw_text_centered(
 
                 if px < WIDTH && py < HEIGHT {
                     let idx = (py * WIDTH + px) as usize * 4;
-
-                    // Blend the glyph pixel with the background (transparent rendering)
                     let alpha = pixel as f32 / 255.0;
-                    frame[idx] = (pixel as f32 * alpha + frame[idx] as f32 * (1.0 - alpha)) as u8; // R
-                    frame[idx + 1] = (pixel as f32 * alpha + frame[idx + 1] as f32 * (1.0 - alpha)) as u8; // G
-                    frame[idx + 2] = (pixel as f32 * alpha + frame[idx + 2] as f32 * (1.0 - alpha)) as u8; // B
-                    frame[idx + 3] = 0xFF; // Fully opaque alpha
+                    frame[idx] = (pixel as f32 * alpha + frame[idx] as f32 * (1.0 - alpha)) as u8;
+                    frame[idx + 1] = (pixel as f32 * alpha + frame[idx + 1] as f32 * (1.0 - alpha)) as u8;
+                    frame[idx + 2] = (pixel as f32 * alpha + frame[idx + 2] as f32 * (1.0 - alpha)) as u8;
+                    frame[idx + 3] = 0xFF;
                 }
             }
         }

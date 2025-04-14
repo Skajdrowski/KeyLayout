@@ -116,7 +116,7 @@ fn main() {
 
     let mut background_frame = vec![0; WIDTH * HEIGHT];
     for &(_key, x, y, width, height, _) in &key_map {
-        draw_rectangle(&mut background_frame, x, y, width, height, 0x7D7D7DFF); // Gray color
+        draw_rectangle(&mut background_frame, x, y, width, height, 0xff808080); // Gray color
     }
 
     while window.is_open() && !window.is_key_down(minifbKey::Escape) {

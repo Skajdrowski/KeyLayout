@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 minifb = "0.28.0"
 fontdue = "0.9.3"
+rdev = "0.5.3"
 
 [profile.release]
 opt-level = 3

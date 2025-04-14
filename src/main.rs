@@ -1,29 +1,26 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fontdue::{Font, FontSettings};
-use pixels::{Pixels, SurfaceTexture};
-use winit::{
-    dpi::LogicalSize,
-    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-use std::{collections::HashSet, time::{Duration, Instant}};
+use minifb::{Key, Window, WindowOptions};
+use std::{time::{Duration, Instant}, thread::sleep};
 
-const WIDTH: u32 = 1200; // Screen width
-const HEIGHT: u32 = 400; // Screen height
+const WIDTH: usize = 1200; // Screen width
+const HEIGHT: usize = 400; // Screen height
 
 fn main() {
     let frame_time = Duration::from_secs_f32(1.0 / 60.0); // 60 FPS
     let mut last_frame = Instant::now();
 
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().with_title("KeyLayout").with_inner_size(LogicalSize::new(WIDTH, HEIGHT)).build(&event_loop).unwrap();
+    let mut window = Window::new(
+        "KeyLayout",
+        WIDTH,
+        HEIGHT,
+        WindowOptions::default(),
+    )
+    .expect("Failed to create window");
 
-    let surface_texture = SurfaceTexture::new(WIDTH, HEIGHT, &window);
-    let mut pixels = Pixels::new(WIDTH, HEIGHT, surface_texture).expect("Failed to create Pixels instance");
+    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
-    let mut pressed_keys = HashSet::new();
     let mut shift_pressed = false;
 
     // Load default font
@@ -31,141 +28,115 @@ fn main() {
     let font = Font::from_bytes(font_data, FontSettings::default()).expect("Failed to load font");
 
     let key_map = vec![
-        (VirtualKeyCode::Grave, 50, 50, 50, 50, "`"),
-        (VirtualKeyCode::Key1, 110, 50, 50, 50, "1"),
-        (VirtualKeyCode::Key2, 170, 50, 50, 50, "2"),
-        (VirtualKeyCode::Key3, 230, 50, 50, 50, "3"),
-        (VirtualKeyCode::Key4, 290, 50, 50, 50, "4"),
-        (VirtualKeyCode::Key5, 350, 50, 50, 50, "5"),
-        (VirtualKeyCode::Key6, 410, 50, 50, 50, "6"),
-        (VirtualKeyCode::Key7, 470, 50, 50, 50, "7"),
-        (VirtualKeyCode::Key8, 530, 50, 50, 50, "8"),
-        (VirtualKeyCode::Key9, 590, 50, 50, 50, "9"),
-        (VirtualKeyCode::Key0, 650, 50, 50, 50, "0"),
-        (VirtualKeyCode::Minus, 710, 50, 50, 50, "-"),
-        (VirtualKeyCode::Equals, 770, 50, 50, 50, "="),
-        (VirtualKeyCode::Back, 830, 50, 100, 50, "Backspace"),
+        (Key::Key1,        50,  50,  50,  50,  "1"),
+        (Key::Key2,       110,  50,  50,  50,  "2"),
+        (Key::Key3,       170,  50,  50,  50,  "3"),
+        (Key::Key4,       230,  50,  50,  50,  "4"),
+        (Key::Key5,       290,  50,  50,  50,  "5"),
+        (Key::Key6,       350,  50,  50,  50,  "6"),
+        (Key::Key7,       410,  50,  50,  50,  "7"),
+        (Key::Key8,       470,  50,  50,  50,  "8"),
+        (Key::Key9,       530,  50,  50,  50,  "9"),
+        (Key::Key0,       590,  50,  50,  50,  "0"),
+        (Key::Minus,      650,  50,  50,  50,  "-"),
+        (Key::Equal,      710,  50,  50,  50,  "="),
+        (Key::Backspace,  770,  50, 110,  50,  "Backspace"),
 
-        (VirtualKeyCode::Tab, 50, 110, 80, 50, "Tab"),
-        (VirtualKeyCode::Q, 140, 110, 50, 50, "q"),
-        (VirtualKeyCode::W, 200, 110, 50, 50, "w"),
-        (VirtualKeyCode::E, 260, 110, 50, 50, "e"),
-        (VirtualKeyCode::R, 320, 110, 50, 50, "r"),
-        (VirtualKeyCode::T, 380, 110, 50, 50, "t"),
-        (VirtualKeyCode::Y, 440, 110, 50, 50, "y"),
-        (VirtualKeyCode::U, 500, 110, 50, 50, "u"),
-        (VirtualKeyCode::I, 560, 110, 50, 50, "i"),
-        (VirtualKeyCode::O, 620, 110, 50, 50, "o"),
-        (VirtualKeyCode::P, 680, 110, 50, 50, "p"),
-        (VirtualKeyCode::LBracket, 740, 110, 50, 50, "["),
-        (VirtualKeyCode::RBracket, 800, 110, 50, 50, "]"),
-        (VirtualKeyCode::Backslash, 860, 110, 90, 50, "\\"),
+        (Key::Tab,         50, 110,  80,  50,  "Tab"),
+        (Key::Q,          140, 110,  50,  50,  "q"),
+        (Key::W,          200, 110,  50,  50,  "w"),
+        (Key::E,          260, 110,  50,  50,  "e"),
+        (Key::R,          320, 110,  50,  50,  "r"),
+        (Key::T,          380, 110,  50,  50,  "t"),
+        (Key::Y,          440, 110,  50,  50,  "y"),
+        (Key::U,          500, 110,  50,  50,  "u"),
+        (Key::I,          560, 110,  50,  50,  "i"),
+        (Key::O,          620, 110,  50,  50,  "o"),
+        (Key::P,          680, 110,  50,  50,  "p"),
+        (Key::LeftBracket,740, 110,  50,  50,  "["),
+        (Key::RightBracket,800, 110,  50,  50,  "]"),
+        (Key::Backslash,  860, 110,  90,  50,  "\\"),
 
-        (VirtualKeyCode::Capital, 50, 170, 90, 50, "Caps"),
-        (VirtualKeyCode::A, 150, 170, 50, 50, "a"),
-        (VirtualKeyCode::S, 210, 170, 50, 50, "s"),
-        (VirtualKeyCode::D, 270, 170, 50, 50, "d"),
-        (VirtualKeyCode::F, 330, 170, 50, 50, "f"),
-        (VirtualKeyCode::G, 390, 170, 50, 50, "g"),
-        (VirtualKeyCode::H, 450, 170, 50, 50, "h"),
-        (VirtualKeyCode::J, 510, 170, 50, 50, "j"),
-        (VirtualKeyCode::K, 570, 170, 50, 50, "k"),
-        (VirtualKeyCode::L, 630, 170, 50, 50, "l"),
-        (VirtualKeyCode::Semicolon, 690, 170, 50, 50, ";"),
-        (VirtualKeyCode::Apostrophe, 750, 170, 50, 50, "'"),
-        (VirtualKeyCode::Return, 810, 170, 130, 50, "Enter"),
+        (Key::CapsLock,    50, 170,  90,  50,  "Caps"),
+        (Key::A,          150, 170,  50,  50,  "a"),
+        (Key::S,          210, 170,  50,  50,  "s"),
+        (Key::D,          270, 170,  50,  50,  "d"),
+        (Key::F,          330, 170,  50,  50,  "f"),
+        (Key::G,          390, 170,  50,  50,  "g"),
+        (Key::H,          450, 170,  50,  50,  "h"),
+        (Key::J,          510, 170,  50,  50,  "j"),
+        (Key::K,          570, 170,  50,  50,  "k"),
+        (Key::L,          630, 170,  50,  50,  "l"),
+        (Key::Semicolon,  690, 170,  50,  50,  ";"),
+        (Key::Apostrophe, 750, 170,  50,  50,  "'"),
+        (Key::Enter,      810, 170, 130,  50,  "Enter"),
 
-        (VirtualKeyCode::LShift, 50, 230, 110, 50, "Shift"),
-        (VirtualKeyCode::Z, 170, 230, 50, 50, "z"),
-        (VirtualKeyCode::X, 230, 230, 50, 50, "x"),
-        (VirtualKeyCode::C, 290, 230, 50, 50, "c"),
-        (VirtualKeyCode::V, 350, 230, 50, 50, "v"),
-        (VirtualKeyCode::B, 410, 230, 50, 50, "b"),
-        (VirtualKeyCode::N, 470, 230, 50, 50, "n"),
-        (VirtualKeyCode::M, 530, 230, 50, 50, "m"),
-        (VirtualKeyCode::Comma, 590, 230, 50, 50, ","),
-        (VirtualKeyCode::Period, 650, 230, 50, 50, "."),
-        (VirtualKeyCode::Slash, 710, 230, 50, 50, "/"),
-        (VirtualKeyCode::RShift, 770, 230, 170, 50, "Shift"),
+        (Key::LeftShift,   50, 230, 110,  50,  "Shift"),
+        (Key::Z,          170, 230,  50,  50,  "z"),
+        (Key::X,          230, 230,  50,  50,  "x"),
+        (Key::C,          290, 230,  50,  50,  "c"),
+        (Key::V,          350, 230,  50,  50,  "v"),
+        (Key::B,          410, 230,  50,  50,  "b"),
+        (Key::N,          470, 230,  50,  50,  "n"),
+        (Key::M,          530, 230,  50,  50,  "m"),
+        (Key::Comma,      590, 230,  50,  50,  ","),
+        (Key::Period,     650, 230,  50,  50,  "."),
+        (Key::Slash,      710, 230,  50,  50,  "/"),
+        (Key::RightShift, 770, 230, 170,  50,  "Shift"),
 
-        (VirtualKeyCode::LControl, 50, 290, 80, 50, "Ctrl"),
-        (VirtualKeyCode::LAlt, 140, 290, 80, 50, "Alt"),
-        (VirtualKeyCode::Space, 230, 290, 400, 50, "Space"),
-        (VirtualKeyCode::RAlt, 640, 290, 80, 50, "Alt"),
-        (VirtualKeyCode::RControl, 730, 290, 80, 50, "Ctrl"),
+        (Key::LeftCtrl,    50, 290,  80,  50,  "Ctrl"),
+        (Key::LeftAlt,    140, 290,  80,  50,  "Alt"),
+        (Key::Space,      230, 290, 400,  50,  "Space"),
+        (Key::RightAlt,   640, 290,  80,  50,  "Alt"),
+        (Key::RightCtrl,  730, 290,  80,  50,  "Ctrl"),
     ];
 
-    let mut background_frame = vec![0; (WIDTH * HEIGHT * 4) as usize];
+    let mut background_frame = vec![0; WIDTH * HEIGHT];
     for &(_key, x, y, width, height, _) in &key_map {
-        draw_rectangle(&mut background_frame, x, y, width, height, [125, 125, 125, 255]);
+        draw_rectangle(&mut background_frame, x, y, width, height, 0x7D7D7DFF); // Gray color
     }
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::WaitUntil(last_frame + frame_time);
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput { input, .. } => {
-                    if let Some(keycode) = input.virtual_keycode {
-                        match input.state {
-                            ElementState::Pressed => {
-                                pressed_keys.insert(keycode);
-                                if keycode == VirtualKeyCode::LShift || keycode == VirtualKeyCode::RShift {
-                                    shift_pressed = true;
-                                }
-                            }
-                            ElementState::Released => {
-                                pressed_keys.remove(&keycode);
-                                if keycode == VirtualKeyCode::LShift || keycode == VirtualKeyCode::RShift {
-                                    shift_pressed = false;
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            },
-            Event::MainEventsCleared => {
-                // Frame timing
-                let now = Instant::now();
-                if now.duration_since(last_frame) >= frame_time {
-                    last_frame = now;
-                    window.request_redraw();
-                }
-            }
-            Event::RedrawRequested(_) => {
-                let frame = pixels.frame_mut();
-                frame.copy_from_slice(&background_frame);
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        // Frame timing
+        let now = Instant::now();
+        if now.duration_since(last_frame) >= frame_time {
+            last_frame = now;
 
-                for &(key, x, y, width, height, label) in &key_map {
-                    if pressed_keys.contains(&key) {
-                        draw_rectangle(frame, x, y, width, height, [255, 255, 255, 255]);
-                    }
-                    let text = if shift_pressed && label.len() == 1 && label.chars().all(|c| c.is_alphanumeric()) {
-                        label.to_uppercase()
-                    } else {
-                        label.to_string()
-                    };
-                    draw_text_centered(&font, frame, x, y, width, height, &text);
-                }
+            // Clear the buffer
+            buffer.copy_from_slice(&background_frame);
 
-                if pixels.render().is_err() {
-                    *control_flow = ControlFlow::Exit;
-                    eprintln!("Pixel rendering error occurred!");
+            // Draw pressed keys
+            for &(key, x, y, width, height, label) in &key_map {
+                if window.is_key_down(key) {
+                    draw_rectangle(&mut buffer, x, y, width, height, 0xFFFFFFFF); // White color
                 }
+                let text = if shift_pressed && label.len() == 1 && label.chars().all(|c| c.is_alphanumeric()) {
+                    label.to_uppercase()
+                } else {
+                    label.to_string()
+                };
+                draw_text_centered(&font, &mut buffer, x, y, width, height, &text);
             }
-            _ => {}
+
+            // Update the window
+            window
+                .update_with_buffer(&buffer, WIDTH, HEIGHT)
+                .expect("Failed to update buffer");
         }
-    });
+
+        // Handle shift pressed state
+        shift_pressed = window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+        sleep(frame_time.saturating_sub(now.duration_since(last_frame)));
+    }
 }
 
 /// Draw a rectangle on the frame buffer
-fn draw_rectangle(frame: &mut [u8], x: u32, y: u32, width: u32, height: u32, color: [u8; 4]) {
+fn draw_rectangle(buffer: &mut [u32], x: usize, y: usize, width: usize, height: usize, color: u32) {
     for row in 0..height {
         for col in 0..width {
-            let idx = ((y + row) * WIDTH + (x + col)) as usize * 4;
-            if idx + 3 < frame.len() {
-                frame[idx..idx + 4].copy_from_slice(&color);
+            let idx = (y + row) * WIDTH + (x + col);
+            if idx < buffer.len() {
+                buffer[idx] = color;
             }
         }
     }
@@ -174,43 +145,59 @@ fn draw_rectangle(frame: &mut [u8], x: u32, y: u32, width: u32, height: u32, col
 /// Draw text using fontdue and center it within the rectangle
 fn draw_text_centered(
     font: &Font,
-    frame: &mut [u8],
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
+    buffer: &mut [u32],
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
     text: &str,
 ) {
-    let mut text_width = 0;
-    let mut text_height = 0;
+    let mut total_text_width = 0;
+    let mut max_text_height = 0;
 
+    // Calculate total text width and maximum height for all characters in the string
     for c in text.chars() {
-        let (metrics, _) = font.rasterize(c, 20.0);
-        text_width += metrics.advance_width as u32;
-        text_height = text_height.max(metrics.height as u32);
+        let (metrics, _) = font.rasterize(c, 20.0); // Fixed font size
+        total_text_width += metrics.advance_width as usize;
+        max_text_height = max_text_height.max(metrics.height as usize);
     }
 
-    let x_text = x + (width - text_width) / 2;
-    let y_text = y + (height - text_height) / 2;
+    // Calculate the top-left corner for the text to center it in the rectangle
+    let mut x_start = x + (width.saturating_sub(total_text_width)) / 2;
+    let mut y_start = y + (height.saturating_sub(max_text_height)) / 2;
 
-    let mut current_x = x_text;
     for c in text.chars() {
+        // Rasterize each character
         let (metrics, bitmap) = font.rasterize(c, 20.0);
+
+        // Draw the character onto the buffer
         for (dy, row) in bitmap.chunks(metrics.width).enumerate() {
             for (dx, &pixel) in row.iter().enumerate() {
-                let px = current_x + dx as u32;
-                let py = y_text + dy as u32;
+                let px = x_start + dx;
+                let py = y_start + dy;
 
                 if px < WIDTH && py < HEIGHT {
-                    let idx = (py * WIDTH + px) as usize * 4;
+                    let idx = py * WIDTH + px;
                     let alpha = pixel as f32 / 255.0;
-                    frame[idx] = (pixel as f32 * alpha + frame[idx] as f32 * (1.0 - alpha)) as u8;
-                    frame[idx + 1] = (pixel as f32 * alpha + frame[idx + 1] as f32 * (1.0 - alpha)) as u8;
-                    frame[idx + 2] = (pixel as f32 * alpha + frame[idx + 2] as f32 * (1.0 - alpha)) as u8;
-                    frame[idx + 3] = 0xFF;
+
+                    // Extract the destination color (background)
+                    let dest_color = buffer[idx];
+                    let dest_r = ((dest_color >> 16) & 0xFF) as f32;
+                    let dest_g = ((dest_color >> 8) & 0xFF) as f32;
+                    let dest_b = (dest_color & 0xFF) as f32;
+
+                    // Blend the source color (white text) with the background
+                    let blended_r = (255.0 * alpha + dest_r * (1.0 - alpha)) as u32;
+                    let blended_g = (255.0 * alpha + dest_g * (1.0 - alpha)) as u32;
+                    let blended_b = (255.0 * alpha + dest_b * (1.0 - alpha)) as u32;
+
+                    buffer[idx] = (0xFF << 24) | (blended_r << 16) | (blended_g << 8) | blended_b;
                 }
             }
         }
-        current_x += metrics.advance_width as u32;
+
+        // Advance the current position by the character's advance
+        x_start += metrics.advance_width as usize;
+        y_start += metrics.advance_height as usize;
     }
 }

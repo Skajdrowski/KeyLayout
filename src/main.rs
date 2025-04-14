@@ -172,7 +172,6 @@ fn draw_rectangle(buffer: &mut [u32], x: usize, y: usize, width: usize, height: 
     }
 }
 
-/// Draw text using fontdue and center it within the rectangle
 fn draw_text_centered(
     font: &Font,
     buffer: &mut [u32],
@@ -182,51 +181,53 @@ fn draw_text_centered(
     height: usize,
     text: &str,
 ) {
-    let mut total_text_width = 0;
-    let mut max_text_height = 0;
-
-    // Calculate total text width and maximum height for all characters in the string
+    let font_size = 20.0;
+    
+    // Compute total text width for horizontal centering.
+    let total_text_width: f32 = text.chars()
+        .map(|c| {
+            let (metrics, _) = font.rasterize(c, font_size);
+            metrics.advance_width
+        })
+        .sum();
+    let start_x = x as f32 + (width as f32 - total_text_width) / 2.0;
+    
+    let key_center = y as f32 + (height as f32) / 2.0;
+    
+    let mut x_cursor = start_x;
     for c in text.chars() {
-        let (metrics, _) = font.rasterize(c, 20.0); // Fixed font size
-        total_text_width += metrics.advance_width as usize;
-        max_text_height = max_text_height.max(metrics.height);
-    }
-
-    // Calculate the top-left corner for the text to center it in the rectangle
-    let mut x_start = x + (width.saturating_sub(total_text_width)) / 2;
-    let y_start = y + (height.saturating_sub(max_text_height)) / 2;
-
-    for c in text.chars() {
-        // Rasterize each character
-        let (metrics, bitmap) = font.rasterize(c, 20.0);
-
-        // Draw the character onto the buffer
+        let (metrics, bitmap) = font.rasterize(c, font_size);
+        
+        // Center the individual glyph vertically.
+        let glyph_center = (metrics.height as f32) / 2.0;
+        let char_y = key_center - glyph_center - metrics.ymin as f32;
+        
+        let char_x = x_cursor + metrics.xmin as f32;
+        
+        let char_x = char_x.round() as usize;
+        let char_y = char_y.round() as usize;
+        
+        // Draw the glyph bitmap onto the buffer.
         for (dy, row) in bitmap.chunks(metrics.width).enumerate() {
             for (dx, &pixel) in row.iter().enumerate() {
-                let px = x_start + dx;
-                let py = y_start + dy;
-
+                let px = char_x + dx;
+                let py = char_y + dy;
                 if px < WIDTH && py < HEIGHT {
                     let idx = py * WIDTH + px;
                     let alpha = pixel as f32 / 255.0;
-
-                    // Extract the destination color (background)
                     let dest_color = buffer[idx];
                     let dest_r = ((dest_color >> 16) & 0xFF) as f32;
                     let dest_g = ((dest_color >> 8) & 0xFF) as f32;
                     let dest_b = (dest_color & 0xFF) as f32;
-
-                    // Blend the source color (white text) with the background
                     let blended_r = (255.0 * alpha + dest_r * (1.0 - alpha)) as u32;
                     let blended_g = (255.0 * alpha + dest_g * (1.0 - alpha)) as u32;
                     let blended_b = (255.0 * alpha + dest_b * (1.0 - alpha)) as u32;
-
                     buffer[idx] = (0xFF << 24) | (blended_r << 16) | (blended_g << 8) | blended_b;
                 }
             }
         }
-
-        // Advance the current position by the character's advance
-        x_start += metrics.advance_width as usize;
+        
+        // Advance the cursor.
+        x_cursor += metrics.advance_width;
     }
 }

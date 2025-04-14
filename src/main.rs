@@ -219,9 +219,9 @@ fn draw_text_centered(
                     let dest_r = ((dest_color >> 16) & 0xFF) as f32;
                     let dest_g = ((dest_color >> 8) & 0xFF) as f32;
                     let dest_b = (dest_color & 0xFF) as f32;
-                    let blended_r = (255.0 * alpha + dest_r * (1.0 - alpha)) as u32;
-                    let blended_g = (255.0 * alpha + dest_g * (1.0 - alpha)) as u32;
-                    let blended_b = (255.0 * alpha + dest_b * (1.0 - alpha)) as u32;
+                    let blended_r = (200.0 * alpha + dest_r * (1.0 - alpha)) as u32;
+                    let blended_g = (200.0 * alpha + dest_g * (1.0 - alpha)) as u32;
+                    let blended_b = (200.0 * alpha + dest_b * (1.0 - alpha)) as u32;
                     buffer[idx] = (0xFF << 24) | (blended_r << 16) | (blended_g << 8) | blended_b;
                 }
             }

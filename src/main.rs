@@ -5,7 +5,7 @@ use rdev::{listen, Event, EventType, Key};
 use minifb::{Window, WindowOptions, Key as minifbKey};
 use std::{collections::HashSet, time::{Duration, Instant}, thread::{self, sleep}, sync::mpsc};
 
-const WIDTH: usize = 1200;
+const WIDTH: usize = 1000;
 const HEIGHT: usize = 400;
 
 fn main() {

@@ -29,7 +29,7 @@ jobs:
           cargo build --release --target x86_64-pc-windows-msvc
 
       - name: Release
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           files: target/x86_64-pc-windows-msvc/release/KeyVisual.exe

@@ -53,7 +53,7 @@ fn main() {
         (Key::Num0,          590,  50,  50,  50,  "0"),
         (Key::Minus,         650,  50,  50,  50,  "-"),
         (Key::Equal,         710,  50,  50,  50,  "="),
-        (Key::Backspace,     770,  50, 110,  50,  "Backspace"),
+        (Key::Backspace,     770,  50, 135,  50,  "Backspace"),
 
         (Key::Tab,           50, 110,  80,  50,  "Tab"),
         (Key::KeyQ,          140, 110,  50,  50,  "q"),
@@ -168,7 +168,7 @@ fn draw_text_centered(
     text: &str,
     glyph_cache: &mut HashMap<(char, u32), (Metrics, Vec<u8>)>,
 ) {
-    let font_size = 20_u32;
+    let font_size = 24;
     let total_text_width: f32 = text.chars().map(|c| {
         let key = (c, font_size);
         let (metrics, _) = *glyph_cache.entry(key).or_insert_with(|| font.rasterize(c, font_size as f32));

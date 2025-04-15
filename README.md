@@ -1,2 +1,2 @@
 # KeyLayout
-Keyboard layout written in Rust
+A lightweight Keyboard layout for minimal latency

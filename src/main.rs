@@ -1,9 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use fontdue::{Font, FontSettings};
+use fontdue::{Font, FontSettings, Metrics};
 use rdev::{listen, Event, EventType, Key};
 use minifb::{Window, WindowOptions, Key as minifbKey};
-use std::{collections::HashSet, time::{Duration, Instant}, thread::{self, sleep}, sync::mpsc};
+use std::{
+    collections::{HashMap, HashSet},
+    time::{Duration, Instant},
+    thread,
+    sync::mpsc,
+};
 
 const WIDTH: usize = 1000;
 const HEIGHT: usize = 400;
@@ -18,35 +23,20 @@ fn main() {
         listen(move |event: Event| {
             match event.event_type {
                 EventType::KeyPress(key) => {
-                    if key_sender.send((key, true)).is_err() {
-                        eprintln!("Main thread disconnected, stopping key listener.");
-                    }
+                    let _ = key_sender.send((key, true));
                 }
                 EventType::KeyRelease(key) => {
-                    if key_sender.send((key, false)).is_err() {
-                        eprintln!("Main thread disconnected, stopping key listener.");
-                    }
+                    let _ = key_sender.send((key, false));
                 }
                 _ => {}
             }
-        })
-        .expect("Global key listener failed");
+        }).expect("Global key listener failed");
     });
 
-    let mut window = Window::new(
-        "KeyLayout",
-        WIDTH,
-        HEIGHT,
-        WindowOptions::default(),
-    )
-    .expect("Failed to create window");
+    let mut window = Window::new("KeyLayout", WIDTH, HEIGHT, WindowOptions::default()).expect("Failed to create window");
 
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
     let mut active_keys = HashSet::new();
-
-    let mut shift_pressed = false;
-
-    // Default font
     let font_data = include_bytes!("fonts/OpenSans-Regular.ttf") as &[u8];
     let font = Font::from_bytes(font_data, FontSettings::default()).expect("Failed to load font");
 
@@ -116,58 +106,54 @@ fn main() {
 
     let mut background_frame = vec![0; WIDTH * HEIGHT];
     for &(_key, x, y, width, height, _) in &key_map {
-        draw_rectangle(&mut background_frame, x, y, width, height, 0xff808080); // Gray color
+        draw_rectangle(&mut background_frame, x, y, width, height, 0xff808080);
     }
 
+    let mut glyph_cache: HashMap<(char, u32), (Metrics, Vec<u8>)> = HashMap::new();
+
     while window.is_open() && !window.is_key_down(minifbKey::Escape) {
-        // Frame timing
         let now = Instant::now();
 
-        if now.duration_since(last_frame) >= frame_time {
-            last_frame = now;
-
-            while let Ok((key, is_pressed)) = key_receiver.try_recv() {
-                if is_pressed {
-                    active_keys.insert(key);
-                } else {
-                    active_keys.remove(&key);
-                }
+        if let Ok((key, is_pressed)) = key_receiver.try_recv() {
+            if is_pressed {
+                active_keys.insert(key);
+            } else {
+                active_keys.remove(&key);
             }
+        }
 
-            // Clear the buffer
+        if now.duration_since(last_frame) >= frame_time {
+            let shift_pressed = active_keys.contains(&Key::ShiftLeft) || active_keys.contains(&Key::ShiftRight);
+
             buffer.copy_from_slice(&background_frame);
 
-            // Draw pressed keys
             for &(key, x, y, width, height, label) in &key_map {
                 if active_keys.contains(&key) {
-                    draw_rectangle(&mut buffer, x, y, width, height, 0xFFFFFFFF); // White color
+                    draw_rectangle(&mut buffer, x, y, width, height, 0xFFFFFFFF);
                 }
+
                 let text = if shift_pressed && label.len() == 1 && label.chars().all(|c| c.is_alphanumeric()) {
                     label.to_uppercase()
                 } else {
                     label.to_string()
                 };
-                draw_text_centered(&font, &mut buffer, x, y, width, height, &text);
+
+                draw_text_centered(&font, &mut buffer, x, y, width, height, &text, &mut glyph_cache);
             }
 
-            // Update the window
             window.update_with_buffer(&buffer, WIDTH, HEIGHT).expect("Failed to update buffer");
+            last_frame = Instant::now();
+        } else {
+            window.update();
         }
-
-        // Handle shift pressed state
-        shift_pressed = active_keys.contains(&Key::ShiftLeft) || active_keys.contains(&Key::ShiftRight);
-        sleep(frame_time.saturating_sub(now.duration_since(last_frame)));
     }
 }
 
-/// Draw a rectangle on the frame buffer
 fn draw_rectangle(buffer: &mut [u32], x: usize, y: usize, width: usize, height: usize, color: u32) {
     for row in 0..height {
         for col in 0..width {
             let idx = (y + row) * WIDTH + (x + col);
-            if idx < buffer.len() {
-                buffer[idx] = color;
-            }
+            unsafe { *buffer.get_unchecked_mut(idx) = color; }
         }
     }
 }
@@ -180,54 +166,51 @@ fn draw_text_centered(
     width: usize,
     height: usize,
     text: &str,
+    glyph_cache: &mut HashMap<(char, u32), (Metrics, Vec<u8>)>,
 ) {
-    let font_size = 20.0;
-    
-    // Compute total text width for horizontal centering.
-    let total_text_width: f32 = text.chars()
-        .map(|c| {
-            let (metrics, _) = font.rasterize(c, font_size);
-            metrics.advance_width
-        })
-        .sum();
+    let font_size = 20_u32;
+    let total_text_width: f32 = text.chars().map(|c| {
+        let key = (c, font_size);
+        let (metrics, _) = *glyph_cache.entry(key).or_insert_with(|| font.rasterize(c, font_size as f32));
+        metrics.advance_width
+    }).sum();
+
     let start_x = x as f32 + (width as f32 - total_text_width) / 2.0;
-    
-    let key_center = y as f32 + (height as f32) / 2.0;
-    
+    let key_center = y as f32 + height as f32 / 2.0;
+
     let mut x_cursor = start_x;
     for c in text.chars() {
-        let (metrics, bitmap) = font.rasterize(c, font_size);
-        
-        // Center the individual glyph vertically.
-        let glyph_center = (metrics.height as f32) / 2.0;
+        let key = (c, font_size);
+        let (metrics, bitmap) = glyph_cache.entry(key).or_insert_with(|| font.rasterize(c, font_size as f32));
+
+        let glyph_center = metrics.height as f32 / 2.0;
         let char_y = key_center - glyph_center - metrics.ymin as f32;
-        
         let char_x = x_cursor + metrics.xmin as f32;
-        
+
         let char_x = char_x.round() as usize;
         let char_y = char_y.round() as usize;
-        
-        // Draw the glyph bitmap onto the buffer.
+
         for (dy, row) in bitmap.chunks(metrics.width).enumerate() {
             for (dx, &pixel) in row.iter().enumerate() {
                 let px = char_x + dx;
                 let py = char_y + dy;
                 if px < WIDTH && py < HEIGHT {
-                    let idx = py * WIDTH + px;
-                    let alpha = pixel as f32 / 255.0;
-                    let dest_color = buffer[idx];
-                    let dest_r = ((dest_color >> 16) & 0xFF) as f32;
-                    let dest_g = ((dest_color >> 8) & 0xFF) as f32;
-                    let dest_b = (dest_color & 0xFF) as f32;
-                    let blended_r = (200.0 * alpha + dest_r * (1.0 - alpha)) as u32;
-                    let blended_g = (200.0 * alpha + dest_g * (1.0 - alpha)) as u32;
-                    let blended_b = (200.0 * alpha + dest_b * (1.0 - alpha)) as u32;
-                    buffer[idx] = (0xFF << 24) | (blended_r << 16) | (blended_g << 8) | blended_b;
+                    unsafe {
+                        let idx = py * WIDTH + px;
+                        let alpha = pixel as f32 / 255.0;
+                        let dest_color = *buffer.get_unchecked_mut(idx);
+                        let dest_r = ((dest_color >> 16) & 0xFF) as f32;
+                        let dest_g = ((dest_color >> 8) & 0xFF) as f32;
+                        let dest_b = (dest_color & 0xFF) as f32;
+                        let blended_r = (200.0 * alpha + dest_r * (1.0 - alpha)) as u32;
+                        let blended_g = (200.0 * alpha + dest_g * (1.0 - alpha)) as u32;
+                        let blended_b = (200.0 * alpha + dest_b * (1.0 - alpha)) as u32;
+                        *buffer.get_unchecked_mut(idx) = (0xFF << 24) | (blended_r << 16) | (blended_g << 8) | blended_b;
+                    }
                 }
             }
         }
-        
-        // Advance the cursor.
+
         x_cursor += metrics.advance_width;
     }
 }

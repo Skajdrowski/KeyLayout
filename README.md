@@ -10,7 +10,7 @@ Afterwards install the desired target:
 ```sh
 rustup target add x86_64-pc-windows-msvc --toolchain stable
 ```
-For linux:
+For linux(X11):
 ```sh
 rustup target add x86_64-unknown-linux-gnu --toolchain stable
 ```

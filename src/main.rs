@@ -35,8 +35,11 @@ fn main() {
 
     let mut window = Window::new("KeyLayout", WIDTH, HEIGHT, WindowOptions::default()).expect("Failed to create window");
 
-    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    let mut background_frame = vec![0; WIDTH * HEIGHT];
+    let mut buffer = vec![0; WIDTH * HEIGHT];
+
     let mut active_keys = HashSet::new();
+
     let font_data = include_bytes!("fonts/OpenSans-Regular.ttf") as &[u8];
     let font = Font::from_bytes(font_data, FontSettings::default()).expect("Failed to load font");
 
@@ -104,7 +107,6 @@ fn main() {
         (Key::ControlRight,  730, 290,  80,  50,  "Ctrl"),
     ];
 
-    let mut background_frame = vec![0; WIDTH * HEIGHT];
     for &(_key, x, y, width, height, _) in &key_map {
         draw_rectangle(&mut background_frame, x, y, width, height, 0xff808080);
     }

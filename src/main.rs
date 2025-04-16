@@ -2,7 +2,7 @@
 
 use fontdue::{Font, FontSettings, Metrics};
 use rdev::{listen, Event, EventType, Key};
-use minifb::{Window, WindowOptions, Key as minifbKey};
+use minifb::{Window, WindowOptions, Key as minifbKey, MouseButton};
 use std::{
     collections::{HashMap, HashSet},
     time::{Duration, Instant},
@@ -106,9 +106,13 @@ fn main() {
         (Key::AltGr,         590, 240, 80,  50,  "Alt"),
         (Key::ControlRight,  680, 240, 80,  50,  "Ctrl"),
     ];
+    
+    let mut rectangle_color = 0xff808080;
+    let mut rgb_component = ' ';
+    let mut scroll_toggle = 0;
 
     for &(_key, x, y, width, height, _) in &key_map {
-        draw_rectangle(&mut background_frame, x, y, width, height, 0xff808080);
+        draw_rectangle(&mut background_frame, x, y, width, height, rectangle_color);
     }
 
     let mut glyph_cache: HashMap<(char, u32), (Metrics, Vec<u8>)> = HashMap::new();
@@ -127,6 +131,33 @@ fn main() {
         if now.duration_since(last_frame) >= frame_time {
             let shift_pressed = active_keys.contains(&Key::ShiftLeft) || active_keys.contains(&Key::ShiftRight);
 
+            if scroll_toggle == 1 {
+                if window.is_key_down(minifb::Key::R) {
+                    rgb_component = 'R';
+                    println!("Component selected: Red");
+                    thread::sleep(Duration::from_millis(125));
+                } else if window.is_key_down(minifb::Key::G) {
+                    rgb_component = 'G';
+                    println!("Component selected: Green");
+                    thread::sleep(Duration::from_millis(125));
+                } else if window.is_key_down(minifb::Key::B) {
+                    rgb_component = 'B';
+                    println!("Component selected: Blue");
+                    thread::sleep(Duration::from_millis(125));
+                }
+            }
+
+            if window.get_mouse_down(MouseButton::Middle) && scroll_toggle == 0 {
+                scroll_toggle = 1;
+                println!("Scroll color: ON");
+                thread::sleep(Duration::from_millis(125));
+            }
+            else if window.get_mouse_down(MouseButton::Middle) && scroll_toggle == 1 {
+                scroll_toggle = 0;
+                println!("Scroll color: OFF");
+                thread::sleep(Duration::from_millis(125));
+            }
+
             buffer.copy_from_slice(&background_frame);
 
             for &(key, x, y, width, height, label) in &key_map {
@@ -140,12 +171,25 @@ fn main() {
                     label.to_string()
                 };
 
-                draw_text_centered(&font, &mut buffer, x, y, width, height, &text, &mut glyph_cache);
+                draw_key_text(&font, &mut buffer, x, y, width, height, &text, &mut glyph_cache);
             }
 
             window.update_with_buffer(&buffer, WIDTH, HEIGHT).expect("Failed to update buffer");
             last_frame = Instant::now();
         } else {
+            if scroll_toggle == 1 {
+                if let Some(mouse_wheel) = window.get_scroll_wheel() {
+                    let scroll_amount = mouse_wheel.1 as i32;
+
+                    scroll_color(&mut rectangle_color, scroll_amount, rgb_component);
+
+                    background_frame.fill(0);
+
+                    for &(_key, x, y, width, height, _) in &key_map {
+                        draw_rectangle(&mut background_frame, x, y, width, height, rectangle_color);
+                    }
+                }
+            }
             window.update();
         }
     }
@@ -160,7 +204,26 @@ fn draw_rectangle(buffer: &mut [u32], x: usize, y: usize, width: usize, height: 
     }
 }
 
-fn draw_text_centered(
+fn scroll_color(color: &mut u32, scroll_amount: i32, component: char) {
+    let mut red = ((*color >> 16) & 0xFF) as i32;
+    let mut green = ((*color >> 8) & 0xFF) as i32;
+    let mut blue = (*color & 0xFF) as i32;
+
+    match component {
+        'R' => red = (red + scroll_amount).clamp(0x0, 0xFF),
+        'G' => green = (green + scroll_amount).clamp(0x0, 0xFF),
+        'B' => blue = (blue + scroll_amount).clamp(0x0, 0xFF),
+        _ => {
+            println!("pick a RGB component first !");
+            return;
+        }
+    }
+
+    *color = (0xFF << 24) | ((red as u32) << 16) | ((green as u32) << 8) | (blue as u32);
+    println!("color: {:x}", color);
+}
+
+fn draw_key_text(
     font: &Font,
     buffer: &mut [u32],
     x: usize,

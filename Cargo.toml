@@ -7,6 +7,8 @@ edition = "2024"
 minifb = {git = "https://github.com/emoon/rust_minifb"}
 fontdue = "0.9.3"
 rdev = {git = "https://github.com/Skajdrowski/rdev"}
+serde = {version = "1.0.219", features = ["derive"]}
+serde_ini = {git = "https://github.com/arcnmx/serde-ini"}
 
 [profile.release]
 opt-level = 3

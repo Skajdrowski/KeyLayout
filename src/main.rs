@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod config;
+
+use config::Config;
 use fontdue::{Font, FontSettings, Metrics};
 use rdev::{listen, Event, EventType, Key};
 use minifb::{Window, WindowOptions, Key as minifbKey, MouseButton};
@@ -14,6 +17,8 @@ const WIDTH: usize = 890;
 const HEIGHT: usize = 290;
 
 fn main() {
+    let mut config = Config::load_from_file("KeyLayout.ini");
+    
     let frame_time = Duration::from_secs_f32(1.0 / 60.0);
     let mut last_frame = Instant::now();
 
@@ -107,9 +112,9 @@ fn main() {
         (Key::ControlRight,  680, 240, 80,  50,  "Ctrl"),
     ];
     
-    let mut rectangle_color = 0xff808080;
+    let mut rectangle_color = config.rectangle_color;
     let mut rgb_component = ' ';
-    let mut scroll_toggle = 0;
+    let mut scroll_toggle: u8 = 0;
 
     for &(_key, x, y, width, height, _) in &key_map {
         draw_rectangle(&mut background_frame, x, y, width, height, rectangle_color);
@@ -188,6 +193,9 @@ fn main() {
                     for &(_key, x, y, width, height, _) in &key_map {
                         draw_rectangle(&mut background_frame, x, y, width, height, rectangle_color);
                     }
+                    
+                    config.rectangle_color = rectangle_color;
+                    config.save_to_file("KeyLayout.ini");
                 }
             }
             window.update();

@@ -1,8 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod config;
+mod draw;
 
 use config::Config;
+use draw::{rectangle, key_text, settings_text};
+
 use fontdue::{Font, FontSettings, Metrics};
 use rdev::{listen, Event, EventType, Key};
 use minifb::{Window, WindowOptions, Key as minifbKey, MouseButton};
@@ -13,8 +16,8 @@ use std::{
     sync::mpsc,
 };
 
-const WIDTH: usize = 890;
-const HEIGHT: usize = 290;
+const WINDOW_WIDTH: usize = 890;
+const WINDOW_HEIGHT: usize = 290;
 
 fn main() {
     let mut config = Config::load_from_file("KeyLayout.ini");
@@ -38,15 +41,16 @@ fn main() {
         }).expect("Global key listener failed");
     });
 
-    let mut window = Window::new("KeyLayout", WIDTH, HEIGHT, WindowOptions::default()).expect("Failed to create window");
+    let mut window = Window::new("KeyLayout", WINDOW_WIDTH, WINDOW_HEIGHT, WindowOptions::default()).expect("Failed to create window");
 
-    let mut background_frame = vec![0; WIDTH * HEIGHT];
-    let mut buffer = vec![0; WIDTH * HEIGHT];
+    let mut background_frame = vec![0x00000000; WINDOW_WIDTH * WINDOW_HEIGHT];
+    let mut buffer = vec![0x00000000; WINDOW_WIDTH * WINDOW_HEIGHT];
 
     let mut active_keys = HashSet::new();
 
     let font_data = include_bytes!("fonts/OpenSans-Regular.ttf") as &[u8];
     let font = Font::from_bytes(font_data, FontSettings::default()).expect("Failed to load font");
+    let mut font_settings_size = 64;
 
     let key_map = vec![
         (Key::Num1,          0,   0,  50,  50,  "1"),
@@ -111,13 +115,17 @@ fn main() {
         (Key::AltGr,         590, 240, 80,  50,  "Alt"),
         (Key::ControlRight,  680, 240, 80,  50,  "Ctrl"),
     ];
-    
+
     let mut rectangle_color = config.rectangle_color;
     let mut rgb_component = ' ';
+
     let mut scroll_toggle: u8 = 0;
 
+    let mut flash_timer: Option<(Instant, &'static str)> = None;
+    let flash_duration = Duration::from_secs(2);
+
     for &(_key, x, y, width, height, _) in &key_map {
-        draw_rectangle(&mut background_frame, x, y, width, height, rectangle_color);
+        rectangle(&mut background_frame, x, y, width, height, rectangle_color);
     }
 
     let mut glyph_cache: HashMap<(char, u32), (Metrics, Vec<u8>)> = HashMap::new();
@@ -138,17 +146,24 @@ fn main() {
                 match key {
                     minifbKey::R => {
                         rgb_component = 'R';
-                        println!("Component selected: Red");
+                        font_settings_size = 64;
+                        flash_timer = Some((Instant::now(), "Component selected: Red"))
                     },
                     minifbKey::G => {
                         rgb_component = 'G';
-                        println!("Component selected: Green");
+                        font_settings_size = 64;
+                        flash_timer = Some((Instant::now(), "Component selected: Green"))
                     },
                     minifbKey::B => {
                         rgb_component = 'B';
-                        println!("Component selected: Blue");
+                        font_settings_size = 64;
+                        flash_timer = Some((Instant::now(), "Component selected: Blue"))
                     },
-                    _ => println!("Valid components are: R - Red, G - Green, B - Blue.")
+                    _ => {
+                        font_settings_size = 40;
+                        flash_timer = Some((Instant::now(), "Valid components: R - Red, G - Green, B - Blue."))
+                        
+                    }
                 }
             );
         }
@@ -158,12 +173,14 @@ fn main() {
 
             if window.get_mouse_down(MouseButton::Middle) && scroll_toggle == 0 {
                 scroll_toggle = 1;
-                println!("Scroll color: ON");
+                font_settings_size = 64;
+                flash_timer = Some((Instant::now(), "Scroll toggle: ON"));
                 thread::sleep(Duration::from_millis(125));
             }
             else if window.get_mouse_down(MouseButton::Middle) && scroll_toggle == 1 {
                 scroll_toggle = 0;
-                println!("Scroll color: OFF");
+                font_settings_size = 64;
+                flash_timer = Some((Instant::now(), "Scroll toggle: OFF"));
                 thread::sleep(Duration::from_millis(125));
             }
 
@@ -171,7 +188,7 @@ fn main() {
 
             for &(key, x, y, width, height, label) in &key_map {
                 if active_keys.contains(&key) {
-                    draw_rectangle(&mut buffer, x, y, width, height, 0xFFFFFFFF);
+                    rectangle(&mut buffer, x, y, width, height, 0xFFFFFFFF);
                 }
 
                 let text = if shift_pressed && label.len() == 1 {
@@ -180,22 +197,30 @@ fn main() {
                     label.to_string()
                 };
 
-                draw_key_text(&font, &mut buffer, x, y, width, height, &text, &mut glyph_cache);
+                key_text(&font, &mut buffer, x, y, width, height, &text, &mut glyph_cache);
             }
 
-            window.update_with_buffer(&buffer, WIDTH, HEIGHT).expect("Failed to update buffer");
+            if let Some((start, msg)) = flash_timer {
+                if start.elapsed() <= flash_duration {
+                    settings_text(&font, font_settings_size, &mut buffer, msg, &mut glyph_cache);
+                } else {
+                    flash_timer = None;
+                }
+            }
+
+            window.update_with_buffer(&buffer, WINDOW_WIDTH, WINDOW_HEIGHT).expect("Failed to update buffer");
             last_frame = Instant::now();
         } else {
             if scroll_toggle == 1 {
                 if let Some(mouse_wheel) = window.get_scroll_wheel() {
                     let scroll_amount = mouse_wheel.1 as i32;
 
-                    scroll_color(&mut rectangle_color, scroll_amount, rgb_component);
+                    scroll_color(&mut rectangle_color, scroll_amount, rgb_component, &mut flash_timer);
 
                     background_frame.fill(0);
 
                     for &(_key, x, y, width, height, _) in &key_map {
-                        draw_rectangle(&mut background_frame, x, y, width, height, rectangle_color);
+                        rectangle(&mut background_frame, x, y, width, height, rectangle_color);
                     }
                     
                     config.rectangle_color = rectangle_color;
@@ -207,16 +232,7 @@ fn main() {
     }
 }
 
-fn draw_rectangle(buffer: &mut [u32], x: usize, y: usize, width: usize, height: usize, color: u32) {
-    for row in 0..height {
-        for col in 0..width {
-            let idx = (y + row) * WIDTH + (x + col);
-            unsafe { *buffer.get_unchecked_mut(idx) = color; }
-        }
-    }
-}
-
-fn scroll_color(color: &mut u32, scroll_amount: i32, component: char) {
+fn scroll_color(color: &mut u32, scroll_amount: i32, component: char, flash_timer: &mut Option<(Instant, &'static str)>) {
     let mut red = ((*color >> 16) & 0xFF) as i32;
     let mut green = ((*color >> 8) & 0xFF) as i32;
     let mut blue = (*color & 0xFF) as i32;
@@ -226,68 +242,10 @@ fn scroll_color(color: &mut u32, scroll_amount: i32, component: char) {
         'G' => green = (green + scroll_amount).clamp(0x0, 0xFF),
         'B' => blue = (blue + scroll_amount).clamp(0x0, 0xFF),
         _ => {
-            println!("pick a RGB component first !");
+            *flash_timer = Some((Instant::now(), "Pick RGB component first !"));
             return;
         }
     }
 
     *color = (0xFF << 24) | ((red as u32) << 16) | ((green as u32) << 8) | (blue as u32);
-    println!("color: {:x}", color);
-}
-
-fn draw_key_text(
-    font: &Font,
-    buffer: &mut [u32],
-    x: usize,
-    y: usize,
-    width: usize,
-    height: usize,
-    text: &str,
-    glyph_cache: &mut HashMap<(char, u32), (Metrics, Vec<u8>)>,
-) {
-    let font_size = 24;
-    let total_text_width: f32 = text.chars().map(|c| {
-        let key = (c, font_size);
-        let (metrics, _) = *glyph_cache.entry(key).or_insert_with(|| font.rasterize(c, font_size as f32));
-        metrics.advance_width
-    }).sum();
-
-    let start_x = x as f32 + (width as f32 - total_text_width) / 2.0;
-    let key_center = y as f32 + height as f32 / 2.0;
-
-    let mut x_cursor = start_x;
-    for c in text.chars() {
-        let key = (c, font_size);
-        let (metrics, bitmap) = glyph_cache.entry(key).or_insert_with(|| font.rasterize(c, font_size as f32));
-
-        let glyph_center = metrics.height as f32 / 2.0;
-        let char_y = key_center - glyph_center - metrics.ymin as f32;
-        let char_x = x_cursor + metrics.xmin as f32;
-
-        let char_x = char_x.round() as usize;
-        let char_y = char_y.round() as usize;
-
-        for (dy, row) in bitmap.chunks(metrics.width).enumerate() {
-            for (dx, &pixel) in row.iter().enumerate() {
-                let px = char_x + dx;
-                let py = char_y + dy;
-                if px < WIDTH && py < HEIGHT {
-                    unsafe {
-                        let idx = py * WIDTH + px;
-                        let alpha = pixel as f32 / 255.0;
-                        let dest_color = *buffer.get_unchecked_mut(idx);
-                        let dest_r = ((dest_color >> 16) & 0xFF) as f32;
-                        let dest_g = ((dest_color >> 8) & 0xFF) as f32;
-                        let dest_b = (dest_color & 0xFF) as f32;
-                        let blended_r = (200.0 * alpha + dest_r * (1.0 - alpha)) as u32;
-                        let blended_g = (200.0 * alpha + dest_g * (1.0 - alpha)) as u32;
-                        let blended_b = (200.0 * alpha + dest_b * (1.0 - alpha)) as u32;
-                        *buffer.get_unchecked_mut(idx) = (0xFF << 24) | (blended_r << 16) | (blended_g << 8) | blended_b;
-                    }
-                }
-            }
-        }
-
-        x_cursor += metrics.advance_width;
-    }
 }

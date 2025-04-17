@@ -1,6 +1,9 @@
 # KeyLayout
 A lightweight Keyboard layout for minimal latency
 
+![Untitled](https://github.com/user-attachments/assets/69e817b8-2c9d-4916-8d3f-9b2d1e9e73f5)
+
+
 ## Compilation
 
 This application is written in Rust. In order to compile it, you need to

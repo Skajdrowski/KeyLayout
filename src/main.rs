@@ -174,7 +174,7 @@ fn main() {
                     draw_rectangle(&mut buffer, x, y, width, height, 0xFFFFFFFF);
                 }
 
-                let text = if shift_pressed && label.len() == 1 && label.chars().all(|c| c.is_alphanumeric()) {
+                let text = if shift_pressed && label.len() == 1 {
                     label.to_uppercase()
                 } else {
                     label.to_string()

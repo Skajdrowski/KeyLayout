@@ -132,25 +132,29 @@ fn main() {
                 active_keys.remove(&key);
             }
         }
+        
+        if scroll_toggle == 1 {
+            window.get_keys_released().iter().for_each(|key|
+                match key {
+                    minifbKey::R => {
+                        rgb_component = 'R';
+                        println!("Component selected: Red");
+                    },
+                    minifbKey::G => {
+                        rgb_component = 'G';
+                        println!("Component selected: Green");
+                    },
+                    minifbKey::B => {
+                        rgb_component = 'B';
+                        println!("Component selected: Blue");
+                    },
+                    _ => println!("Valid components are: R - Red, G - Green, B - Blue.")
+                }
+            );
+        }
 
         if now.duration_since(last_frame) >= frame_time {
             let shift_pressed = active_keys.contains(&Key::ShiftLeft) || active_keys.contains(&Key::ShiftRight);
-
-            if scroll_toggle == 1 {
-                if window.is_key_down(minifb::Key::R) {
-                    rgb_component = 'R';
-                    println!("Component selected: Red");
-                    thread::sleep(Duration::from_millis(125));
-                } else if window.is_key_down(minifb::Key::G) {
-                    rgb_component = 'G';
-                    println!("Component selected: Green");
-                    thread::sleep(Duration::from_millis(125));
-                } else if window.is_key_down(minifb::Key::B) {
-                    rgb_component = 'B';
-                    println!("Component selected: Blue");
-                    thread::sleep(Duration::from_millis(125));
-                }
-            }
 
             if window.get_mouse_down(MouseButton::Middle) && scroll_toggle == 0 {
                 scroll_toggle = 1;

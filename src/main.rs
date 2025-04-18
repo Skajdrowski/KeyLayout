@@ -161,11 +161,26 @@ fn main() {
                     },
                     _ => {
                         font_settings_size = 40;
-                        flash_timer = Some((Instant::now(), "Valid components: R - Red, G - Green, B - Blue."))
+                        flash_timer = Some((Instant::now(), "Valid components: R - Red, G - Green, B - Blue"))
                         
                     }
                 }
             );
+            
+            if let Some(mouse_wheel) = window.get_scroll_wheel() {
+                let scroll_amount = mouse_wheel.1 as i32;
+
+                scroll_color(&mut rectangle_color, scroll_amount, rgb_component, &mut flash_timer);
+
+                background_frame.fill(0);
+
+                for &(_key, x, y, width, height, _) in &key_map {
+                    rectangle(&mut background_frame, x, y, width, height, rectangle_color);
+                }
+                    
+                config.rectangle_color = rectangle_color;
+                config.save_to_file("KeyLayout.ini");
+            }
         }
 
         if now.duration_since(last_frame) >= frame_time {
@@ -211,22 +226,6 @@ fn main() {
             window.update_with_buffer(&buffer, WINDOW_WIDTH, WINDOW_HEIGHT).expect("Failed to update buffer");
             last_frame = Instant::now();
         } else {
-            if scroll_toggle == 1 {
-                if let Some(mouse_wheel) = window.get_scroll_wheel() {
-                    let scroll_amount = mouse_wheel.1 as i32;
-
-                    scroll_color(&mut rectangle_color, scroll_amount, rgb_component, &mut flash_timer);
-
-                    background_frame.fill(0);
-
-                    for &(_key, x, y, width, height, _) in &key_map {
-                        rectangle(&mut background_frame, x, y, width, height, rectangle_color);
-                    }
-                    
-                    config.rectangle_color = rectangle_color;
-                    config.save_to_file("KeyLayout.ini");
-                }
-            }
             window.update();
         }
     }
